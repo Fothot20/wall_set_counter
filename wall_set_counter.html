@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>wall set counter</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; text-align: center; background: #111; color: white; }
+    video, canvas { width: 100%; max-width: 480px; border-radius: 12px; }
+    #countDisplay, #timer { font-size: 2em; margin: 10px 0; }
+    #controls { margin: 10px 0; }
+    button { padding: 10px 20px; font-size: 1em; border-radius: 8px; border: none; background-color: #333; color: white; cursor: pointer; }
+    button:hover { background-color: #555; }
+  </style>
+</head>
+<body>
+  <h1>Wall Set Counter</h1>
+  <div id="countDisplay">Wall Sets: 0</div>
+  <div id="timer">Time: 0s</div>
+  <div id="controls">
+    <button onclick="resetApp()">Reset</button>
+  </div>
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="canvas"></canvas>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const countDisplay = document.getElementById('countDisplay');
+    const timerDisplay = document.getElementById('timer');
+
+    let count = 0;
+    let previousY = null;
+    let wallLineY = 350;
+    let startTime = Date.now();
+
+    // Start timer
+    setInterval(() => {
+      const seconds = Math.floor((Date.now() - startTime) / 1000);
+      timerDisplay.textContent = `Time: ${seconds}s`;
+    }, 1000);
+
+    function resetApp() {
+      count = 0;
+      previousY = null;
+      countDisplay.textContent = 'Wall Sets: 0';
+      startTime = Date.now();
+    }
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      .then(stream => {
+        video.srcObject = stream;
+        video.onloadedmetadata = () => {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          wallLineY = canvas.height * 0.8;
+          requestAnimationFrame(processFrame);
+        };
+      })
+      .catch(err => alert('Camera error: ' + err));
+
+    function detectBall(frame) {
+      const { data, width, height } = frame;
+      let totalX = 0, totalY = 0, hits = 0;
+
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i], g = data[i + 1], b = data[i + 2];
+        const x = (i / 4) % width;
+        const y = Math.floor((i / 4) / width);
+
+        // Yellow detection
+        if (r > 180 && g > 180 && b < 100) {
+          totalX += x;
+          totalY += y;
+          hits++;
+        }
+
+        // Blue detection
+        if (b > 150 && r < 100 && g < 130) {
+          totalX += x;
+          totalY += y;
+          hits++;
+        }
+      }
+
+      if (hits > 100) {
+        return { x: totalX / hits, y: totalY / hits };
+      }
+      return null;
+    }
+
+    function processFrame() {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const ball = detectBall(frame);
+
+      // Draw wall line
+      ctx.strokeStyle = 'lime';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, wallLineY);
+      ctx.lineTo(canvas.width, wallLineY);
+      ctx.stroke();
+
+      if (ball) {
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, 10, 0, 2 * Math.PI);
+        ctx.fillStyle = 'red';
+        ctx.fill();
+
+        if (previousY !== null && previousY < wallLineY && ball.y >= wallLineY) {
+          count++;
+          countDisplay.textContent = `Wall Sets: ${count}`;
+        }
+        previousY = ball.y;
+      } else {
+        previousY = null;
+      }
+
+      requestAnimationFrame(processFrame);
+    }
+  </script>
+</body>
+</html>
+Rename file to .html for GitHub Pages
+Changed website title
+
